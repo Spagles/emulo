@@ -2310,6 +2310,78 @@ def replace_directory(staged, target):
         except OSError:
             pass
 
+RUN_ME_TEMPLATE = """# Emulo - run this
+
+Your agent should read this file and follow it. Everything it needs is here.
+
+Your sessions have already been mined, redacted and split into {chunk_count} chunks:
+
+{chunk_list}
+
+## What to produce
+
+One file, `{out_dir}/you.md`: a working profile of this person that an agent loads
+before a task, so it behaves like someone who already knows them.
+
+## How
+
+Make one pass per chunk, then one final pass over your own notes. {chunk_count} passes,
+then a merge. Do not try to read every chunk at once.
+
+In each pass, pull evidence for four domains. Skip a domain in silence when the chunk
+holds nothing for it. An empty domain is a fact, not a gap to fill.
+
+- `work` - execution laws, verification habits, planning, debugging, shipping, failure modes
+- `design` - UI/UX taste, visual hierarchy, structural rules, references, what gets rejected
+- `write` - voice, phrasing, tone, banned words, copy and reply style
+- `video` - pacing, captions, voiceover, shot and render choices
+
+Every item you keep needs:
+
+- a concrete instruction (a law the person actually holds)
+- the implication (what an agent must therefore do)
+- at least one verbatim quote from the chunk, with its date, copied exactly
+
+## The rule that decides quality
+
+Cut every rule you cannot attach a real quote to.
+
+A rule with no receipt is worse than a missing rule, because it makes the agent
+confidently wrong about someone. Expect to cut a large share of your first draft.
+Anything true of every developer alive ("values clean code", "likes tests") is noise.
+Keep what would surprise a stranger.
+
+For `write` items, note who the text was aimed at: a teammate, a customer, the public,
+or the agent itself. Messages to the agent are casual signal and never prove how this
+person writes for an audience.
+
+## When you are done
+
+Write `{out_dir}/you.md`, then install it into the agents this person actually uses:
+
+    emulo --install {out_dir}/you.md --target claude
+    emulo --install {out_dir}/you.md --target codex
+    emulo --install {out_dir}/you.md --target cursor --repo .
+
+Targets: claude, codex, cursor, agents, gemini, opencode.
+
+## Then check it
+
+Take one real task with room for judgment, not a crisp bugfix. Run it twice, once
+without the profile and once with it, and read both outputs side by side. Crisp tasks
+collapse the difference and prove nothing.
+"""
+
+def render_run_me(out_dir, chunk_count):
+    chunk_list = "\n".join(
+        f"- {out_dir}/chunks/chunk-{i:02d}.txt" for i in range(1, chunk_count + 1)
+    ) or "- (no chunks were written)"
+    return RUN_ME_TEMPLATE.format(
+        chunk_count=chunk_count,
+        chunk_list=chunk_list,
+        out_dir=out_dir,
+    )
+
 def write_outputs(blocks, out_dir, chunks, stats_result=None):
     os.makedirs(out_dir, exist_ok=True)
     chunks_dir = os.path.join(out_dir, "chunks")
@@ -2343,7 +2415,12 @@ def write_outputs(blocks, out_dir, chunks, stats_result=None):
             write_stats(stats_result, out_dir)
         replace_directory(staged_chunks, chunks_dir)
         staged_chunks = None
-        return idx - 1
+        chunk_count = idx - 1
+        atomic_write_text(
+            os.path.join(out_dir, "RUN_ME.md"),
+            render_run_me(out_dir, chunk_count),
+        )
+        return chunk_count
     finally:
         if staged_chunks and os.path.exists(staged_chunks):
             shutil.rmtree(staged_chunks)
@@ -3882,7 +3959,7 @@ def plugin_main(argv):
         raise SystemExit(1) from None
     print(json.dumps(payload, sort_keys=True))
 
-EMULO_VERSION = "0.6.0"
+EMULO_VERSION = "0.6.1"
 MCP_PROTOCOL_VERSION = "2025-06-18"
 AUTOPILOT_HEAD_SCHEMA = "emulo.autopilot-head/v1"
 AUTOPILOT_GENERATION_SCHEMA = "emulo.autopilot-generation/v1"
@@ -4198,14 +4275,15 @@ def legacy_main():
         print("looked in:", ", ".join(roots))
         print(f"jsonl files: {len(files)}")
         print_counts(result, args.no_redact)
-        print(f"would write: {args.out}/you-corpus.txt  +  chunks in {args.out}/chunks/")
+        print(f"would write: {args.out}/you-corpus.txt  +  {args.out}/RUN_ME.md  +  chunks in {args.out}/chunks/")
         return
 
     chunk_count = write_outputs(result["blocks"], args.out, args.chunks, stats_result=result)
 
     print_counts(result, args.no_redact)
     print(f"wrote: {args.out}/you-corpus.txt  +  {chunk_count} chunks in {args.out}/chunks/")
-    print(f"\nnext: open your coding agent, paste MINING_PROMPT.md, point it at {args.out}/chunks/, merge into you.md")
+    print(f"\nnext: open your coding agent in this folder and tell it:")
+    print(f"      read {args.out}/RUN_ME.md and follow it")
 
 def main():
     configure_console()

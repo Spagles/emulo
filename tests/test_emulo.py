@@ -107,6 +107,54 @@ class EmuloCliTest(unittest.TestCase):
             self.assertNotIn("assistant output should not appear", corpus)
             self.assertEqual(corpus, chunk)
 
+    def test_run_me_names_only_files_that_exist(self):
+        # The old handoff told users to paste MINING_PROMPT.md, which pip never
+        # installed. Assert every path RUN_ME.md points the agent at is real.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            logs = root / "logs"
+            out = root / "emulo-out"
+            write_jsonl(logs / "codex.jsonl", [
+                {
+                    "timestamp": f"2026-07-0{i}T10:00:00Z",
+                    "payload": {
+                        "type": "message",
+                        "role": "user",
+                        "content": [{"text": f"message number {i} " + ("x" * 400)}],
+                    },
+                }
+                for i in range(1, 8)
+            ])
+
+            result = subprocess.run(
+                [sys.executable, str(EMULO), "--path", str(logs), "--out", str(out), "--chunks", "3"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            run_me_path = out / "RUN_ME.md"
+            self.assertTrue(run_me_path.exists(), "RUN_ME.md was not written")
+            run_me = run_me_path.read_text(encoding="utf-8")
+
+            chunks = sorted((out / "chunks").glob("chunk-*.txt"))
+            self.assertTrue(chunks, "no chunks were written")
+
+            referenced = [
+                line.strip()[2:]
+                for line in run_me.splitlines()
+                if line.startswith("- ") and line.strip().endswith(".txt")
+            ]
+            self.assertEqual(len(chunks), len(referenced))
+            for path in referenced:
+                self.assertTrue(Path(path).exists(), f"RUN_ME.md points at a missing file: {path}")
+
+            # it must be self-contained: never send the user hunting for a repo file
+            self.assertNotIn("MINING_PROMPT", run_me)
+            self.assertIn("you.md", run_me)
+            self.assertIn("read", result.stdout)
+            self.assertIn("RUN_ME.md", result.stdout)
+
     def test_redacts_bare_and_is_form_credentials_without_eating_prose(self):
         import importlib.util
         spec = importlib.util.spec_from_file_location("emulo", EMULO)

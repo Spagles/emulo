@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.6.1 - 2026-07-26
+
+### Fixed
+
+- **`pip install emulo` left the user at a dead end.** The published package ships `emulo.py` alone, but the miner's closing line told the user to "paste MINING_PROMPT.md" - a file pip never installs. Anyone following the documented `pip install` path had no way to reach the contract that instruction named, short of finding it on GitHub by hand. The bootstrap path was never affected: `npx skills add` downloads `MINING_PROMPT.md` alongside `emulo.py` at the pinned release tag after SHA-256 verification, so agent-driven users always had it. This closes the pip path specifically.
+
+### Added
+
+- **`RUN_ME.md` is written into the mining output directory.** It is self-contained: it lists every generated chunk by path, states the one-pass-per-chunk-then-merge shape, carries the four domains and the evidence bar (a rule without a verbatim dated quote gets cut), names `you.md` as the output, and ends with the install command for each supported target. The remaining step after `emulo` is now one line to an agent, `read emulo-out/RUN_ME.md and follow it`, with nothing to paste and nothing else to download. The dry-run plan and the README CLI section were updated to match.
+
+### Changed
+
+- **The site pricing section no longer advertises Emulo Pro.** The monthly and annual plans were displaying prices behind a "Coming soon" button for a product that cannot be bought yet, and the page's `SoftwareApplication` structured data still declared `$9` and `$79` Offers, so search results could surface prices with nothing behind them. Both plan cards and both Offer entries are removed. The second pane now describes the Profile Build service and links to email rather than checkout. The `.pro-plan` styles are deliberately kept so the plans can be restored unchanged when Pro is real, and the exact pane markup plus both Offer entries are preserved verbatim in `docs/site-pro-pricing-withdrawn.md` with restore steps. Nothing about Pro pricing was discarded; it is parked outside `site/` because `vercel.json` serves that whole directory, so an HTML comment would still ship `$9` and `$79` in the page source.
+
+### Verified
+
+- Full suite passes: 398 tests, 3 skipped, 0 failures, with 0.6.1 pinned across `emulo.py`, all four plugin manifests, the marketplace manifest, `server.json`, and the bootstrap runtime.
+- `tests/test_site_pricing.py` was rewritten to assert the new intent rather than dropped. It previously required `$9`, `$79`, `$108` and `Save 27%` to be present; it now fails if any plan price, discount, `Coming soon` button, checkout host, or paid-account URL reappears on the static page, and it checks the visible page and the structured data agree.
+- A new test executes the miner and asserts that every path `RUN_ME.md` points an agent at exists on disk, and that the file never refers the user to a repository file the package does not install. The previous handoff would have failed this test; no string-comparison test could have caught it.
+- Checked against a real 103-session Claude Code history: the run wrote 15 chunks and a `RUN_ME.md` naming all 15 at their real paths. Reruns producing fewer chunks rewrite it to match.
+- The `v0.6.1` bootstrap runtime pins `emulo.py` to SHA-256 `1814815ce87dd122` (prefix); `MINING_PROMPT.md` is unchanged at `ee22077c2cda3c1c` (prefix). Full digests in `.agents/skills/emulo/runtime.json`.
+- Not verified: `pip install emulo==0.6.1` end to end from a clean virtualenv, because the version is not published. Run that against PyPI after the tag, before telling anyone the pip dead end is closed.
+
 ## 0.6.0 - 2026-07-20
 
 ### Added
