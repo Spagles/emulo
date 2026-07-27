@@ -4427,9 +4427,11 @@ def verify_main(argv):
     thin = [r for r in results if r["supported"] and len(r["sessions"]) < 2]
 
     if args.json:
+        # This file is meant to be shared with someone who is not you, so it
+        # carries file names rather than paths. A local path leaks a username,
+        # a home directory and often a client's project name.
         print(json.dumps({
-            "profile": args.profile,
-            "out": out_dir,
+            "profile": os.path.basename(args.profile),
             "sessions_searched": len(sessions),
             "quotes_checked": len(results),
             "unsupported": len(unsupported),

@@ -128,6 +128,27 @@ class VerifyReceiptsTest(unittest.TestCase):
             supported = [r for r in payload["results"] if r["supported"]]
             self.assertEqual(["aaa111", "bbb222"], supported[0]["sessions"])
 
+    def test_json_report_carries_no_local_paths(self):
+        # The report is designed to be sent to someone else, so it must not
+        # carry a home directory, a username, or a client's project path.
+        import json
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            out = build_corpus(root)
+            profile = root / "you.md"
+            profile.write_text(
+                '"done means it runs live, never off a code edit"\n', encoding="utf-8"
+            )
+            result = run_verify(profile, out, "--json")
+            self.assertEqual(0, result.returncode, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual("you.md", payload["profile"])
+            blob = json.dumps(payload)
+            self.assertNotIn(str(root), blob)
+            self.assertNotIn(str(out), blob)
+            self.assertNotIn("out", payload)
+
     def test_missing_corpus_is_an_explicit_error_not_a_pass(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
