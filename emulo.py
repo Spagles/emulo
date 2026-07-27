@@ -3178,15 +3178,31 @@ def resolve_out_dir(value=None):
         return "ditto-out"
     return "emulo-out"
 
+def home_holds_mined_data(path):
+    # The only thing that makes a home "the" home is the mined data in it:
+    # a profile store or a segment/report cache. Anything else in the directory
+    # is unrelated (release tooling, Pro state) and must not claim the name.
+    return any(
+        os.path.isdir(os.path.join(path, *parts))
+        for parts in (("profiles",), ("cache", "reports"), ("cache", "segments"))
+    )
+
 def resolve_emulo_home(value=None):
     # EMULO_HOME wins; DITTO_HOME (pre-rename) still honored; and an existing
-    # ~/.ditto keeps working in place when no ~/.emulo exists yet, so nobody's
-    # mined profile disappears after the rename. No data is moved.
+    # ~/.ditto keeps working in place when ~/.emulo holds no mined data yet, so
+    # nobody's mined profile disappears after the rename. No data is moved.
+    #
+    # This used to test `os.path.isdir(new_home)`, which broke the moment ANY
+    # unrelated code created ~/.emulo -- Pro and the release tooling both do.
+    # On a real upgraded machine that silently orphaned 59 profile files and 272
+    # cached segment reports in ~/.ditto, so every re-mine paid full price
+    # (112 worker calls where 9 were actually needed). Decide on the data, not
+    # on whether someone happened to mkdir the folder.
     raw = value or os.environ.get("EMULO_HOME") or os.environ.get("DITTO_HOME")
     if not raw:
         new_home = os.path.join(HOME, ".emulo")
         legacy_home = os.path.join(HOME, ".ditto")
-        if not os.path.isdir(new_home) and os.path.isdir(legacy_home):
+        if not home_holds_mined_data(new_home) and home_holds_mined_data(legacy_home):
             raw = legacy_home
         else:
             raw = new_home
