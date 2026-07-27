@@ -3178,15 +3178,31 @@ def resolve_out_dir(value=None):
         return "ditto-out"
     return "emulo-out"
 
+def home_holds_mined_data(path):
+    # The only thing that makes a home "the" home is the mined data in it:
+    # a profile store or a segment/report cache. Anything else in the directory
+    # is unrelated (release tooling, Pro state) and must not claim the name.
+    return any(
+        os.path.isdir(os.path.join(path, *parts))
+        for parts in (("profiles",), ("cache", "reports"), ("cache", "segments"))
+    )
+
 def resolve_emulo_home(value=None):
     # EMULO_HOME wins; DITTO_HOME (pre-rename) still honored; and an existing
-    # ~/.ditto keeps working in place when no ~/.emulo exists yet, so nobody's
-    # mined profile disappears after the rename. No data is moved.
+    # ~/.ditto keeps working in place when ~/.emulo holds no mined data yet, so
+    # nobody's mined profile disappears after the rename. No data is moved.
+    #
+    # This used to test `os.path.isdir(new_home)`, which broke the moment ANY
+    # unrelated code created ~/.emulo -- Pro and the release tooling both do.
+    # On a real upgraded machine that silently orphaned 59 profile files and 272
+    # cached segment reports in ~/.ditto, so every re-mine paid full price
+    # (112 worker calls where 9 were actually needed). Decide on the data, not
+    # on whether someone happened to mkdir the folder.
     raw = value or os.environ.get("EMULO_HOME") or os.environ.get("DITTO_HOME")
     if not raw:
         new_home = os.path.join(HOME, ".emulo")
         legacy_home = os.path.join(HOME, ".ditto")
-        if not os.path.isdir(new_home) and os.path.isdir(legacy_home):
+        if not home_holds_mined_data(new_home) and home_holds_mined_data(legacy_home):
             raw = legacy_home
         else:
             raw = new_home
@@ -4285,6 +4301,172 @@ def legacy_main():
     print(f"\nnext: open your coding agent in this folder and tell it:")
     print(f"      read {args.out}/RUN_ME.md and follow it")
 
+def _verify_read(path):
+    with open(path, "r", encoding="utf-8", errors="replace") as handle:
+        return handle.read()
+
+
+VERIFY_MIN_WORDS = 4
+_QUOTE_PATTERN = re.compile(
+    "\u201c([^\u201c\u201d]{8,400})\u201d"      # curly quotes
+    "|\"([^\"\\n]{8,400})\""                    # straight quotes, single line
+)
+
+
+def _normalize_for_match(text):
+    """Collapse whitespace and quote styles so formatting never fakes a mismatch."""
+    text = text.replace("\u201c", '"').replace("\u201d", '"')
+    text = text.replace("\u2018", "'").replace("\u2019", "'")
+    return re.sub(r"\s+", " ", text).strip().casefold()
+
+
+def extract_quotes(profile_text, min_words=VERIFY_MIN_WORDS):
+    """Every quoted span long enough to be a real receipt.
+
+    Curly quotes are unambiguous, so they are read directly. Straight quotes are
+    not: a regex alternation happily pairs the closing quote of one span with the
+    opening quote of the next, inventing quotes out of the prose between them.
+    They are therefore paired strictly in document order instead.
+    """
+    spans = []
+    curly = "\u201c([^\u201c\u201d]{1,400})\u201d"
+    for match in re.finditer(curly, profile_text):
+        spans.append(match.group(1))
+    remainder = re.sub(curly, " ", profile_text)
+
+    for line in remainder.split("\n"):
+        marks = [m.start() for m in re.finditer('"', line)]
+        for i in range(0, len(marks) - 1, 2):
+            spans.append(line[marks[i] + 1:marks[i + 1]])
+
+    found, seen = [], set()
+    for quote in spans:
+        quote = quote.strip()
+        if len(quote.split()) < min_words:
+            continue
+        if not (quote[0].isalnum() or quote[0] in "'\u2019"):
+            continue
+        if "**" in quote or chr(96) in quote:
+            continue
+        key = _normalize_for_match(quote)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        found.append(quote)
+    return found
+
+def load_corpus_sessions(out_dir):
+    """Return [(session_label, normalized_text)] from a mined corpus directory."""
+    corpus_path = os.path.join(out_dir, "you-corpus.txt")
+    if os.path.exists(corpus_path):
+        raw = _verify_read(corpus_path)
+    else:
+        chunk_dir = os.path.join(out_dir, "chunks")
+        if not os.path.isdir(chunk_dir):
+            return None
+        parts = [
+            _verify_read(os.path.join(chunk_dir, name))
+            for name in sorted(os.listdir(chunk_dir))
+            if name.endswith(".txt")
+        ]
+        if not parts:
+            return None
+        raw = "\n".join(parts)
+
+    sessions, label = [], "(before first session header)"
+    buf = []
+    for line in raw.split("\n"):
+        header = re.match(r"=====\s*session:(\S+)", line)
+        if header:
+            if buf:
+                sessions.append((label, _normalize_for_match("\n".join(buf))))
+            label, buf = header.group(1), []
+            continue
+        buf.append(line)
+    if buf:
+        sessions.append((label, _normalize_for_match("\n".join(buf))))
+    return sessions
+
+
+def verify_profile(profile_text, sessions, min_words=VERIFY_MIN_WORDS):
+    results = []
+    for quote in extract_quotes(profile_text, min_words):
+        needle = _normalize_for_match(quote)
+        supporting = [label for label, text in sessions if needle in text]
+        results.append({
+            "quote": quote,
+            "supported": bool(supporting),
+            "sessions": supporting,
+        })
+    return results
+
+
+def verify_main(argv):
+    parser = argparse.ArgumentParser(
+        prog="emulo verify",
+        description="check every quote in a mined profile against the sessions it claims to come from",
+    )
+    parser.add_argument("profile", help="the you.md (or any profile) to check")
+    parser.add_argument("--out", default=None, help="mining output dir (default: emulo-out)")
+    parser.add_argument("--min-words", type=int, default=VERIFY_MIN_WORDS,
+                        help=f"ignore quotes shorter than this many words (default: {VERIFY_MIN_WORDS})")
+    parser.add_argument("--json", action="store_true", help="emit machine-readable results")
+    args = parser.parse_args(argv)
+
+    if not os.path.exists(args.profile):
+        print(f"no such profile: {args.profile}", file=sys.stderr)
+        sys.exit(2)
+    out_dir = resolve_out_dir(args.out)
+    sessions = load_corpus_sessions(out_dir)
+    if sessions is None:
+        print(f"no mined corpus in {out_dir}. run emulo first.", file=sys.stderr)
+        sys.exit(2)
+
+    results = verify_profile(_verify_read(args.profile), sessions, args.min_words)
+    unsupported = [r for r in results if not r["supported"]]
+    thin = [r for r in results if r["supported"] and len(r["sessions"]) < 2]
+
+    if args.json:
+        # This file is meant to be shared with someone who is not you, so it
+        # carries file names rather than paths. A local path leaks a username,
+        # a home directory and often a client's project name.
+        print(json.dumps({
+            "profile": os.path.basename(args.profile),
+            "sessions_searched": len(sessions),
+            "quotes_checked": len(results),
+            "unsupported": len(unsupported),
+            "single_session": len(thin),
+            "results": results,
+        }, indent=2))
+        sys.exit(1 if unsupported else 0)
+
+    if not results:
+        print("no quotes found in this profile. nothing to check.")
+        print(f"(searched {len(sessions)} sessions; quotes under {args.min_words} words are ignored)")
+        return
+
+    print(f"checked {len(results)} quotes against {len(sessions)} sessions in {out_dir}\n")
+    for r in results:
+        if not r["supported"]:
+            print(f"  NOT FOUND  \"{r['quote'][:96]}\"")
+    if unsupported:
+        print()
+    for r in thin:
+        print(f"  one session  \"{r['quote'][:80]}\"  ({r['sessions'][0]})")
+    if thin:
+        print()
+
+    ok = len(results) - len(unsupported)
+    print(f"{ok}/{len(results)} quotes traced to a real session.")
+    if unsupported:
+        print(f"\n{len(unsupported)} quote(s) appear in no session. Cut those rules.")
+        print("A rule whose receipt cannot be found is invented, and it makes the agent")
+        print("confidently wrong about the person it is describing.")
+        sys.exit(1)
+    if thin:
+        print(f"{len(thin)} quote(s) rest on a single session. That is context, not a rule.")
+
+
 def main():
     configure_console()
     if len(sys.argv) > 1 and sys.argv[1] == "plugin":
@@ -4292,6 +4474,9 @@ def main():
         return
     if len(sys.argv) > 1 and sys.argv[1] == "mcp":
         mcp_main(sys.argv[2:])
+        return
+    if len(sys.argv) > 1 and sys.argv[1] == "verify":
+        verify_main(sys.argv[2:])
         return
     legacy_main()
 
