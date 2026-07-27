@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.2 - 2026-07-27
+
+### Added
+
+- **`emulo verify` traces every quote in a profile back to a real session.** A mined profile earns trust from its receipts, and the worst failure it can carry is not a missing rule but a confident rule quoting something the person never said. Nothing checked that. `emulo verify you.md` extracts every quoted span, searches the mined corpus for it, reports what it cannot find and exits non-zero. Quotes resting on a single session are flagged separately, because one session is context rather than a rule. `--json` emits the supporting session ids per quote, and that report is safe to hand to someone else: it carries quotes already present in the draft plus opaque session ids, and no session text, so a profile's receipts can be checked without its owner disclosing their logs.
+- Straight quotes are paired in document order rather than by regex alternation. Alternation invents quotes out of the prose sitting between one span's closing mark and the next one's opening mark; against a real profile it reported nonsense fragments as unfound receipts. There is a regression test for exactly that shape.
+
+### Fixed
+
+- **The release pin test made every feature branch red.** It hashed the working tree and compared it to the digest in `runtime.json`, an equality that only holds at a release commit, so any branch editing `emulo.py` failed CI by construction. CI that always fails carries no information and the next real regression gets waved through. The pin is now checked against the bytes at the pinned tag via `git show <ref>:<file>`, which is what the bootstrap actually promises and is true on any branch. The useful half of the old assertion is kept in a second test that enforces the working tree against the pin only when `HEAD` is the release commit, which is exactly when forgetting to re-pin matters. CI checks out with `fetch-depth: 0`, since without tags the pin test cannot resolve the release bytes and would skip, retiring the guard silently.
+- The `--json` report embedded the absolute profile path and output directory, so sending it disclosed a home directory, a username, and often a project name. It now carries the profile's file name only.
+
+### Verified
+
+- Full suite passes: 415 tests, 4 skipped, 0 failures, with 0.6.2 pinned across `emulo.py`, all four plugin manifests, the marketplace manifest, `server.json`, and the bootstrap runtime.
+- Run against a real 2,177-session corpus and a real profile, `verify` immediately caught quotes that had been silently tidied. The source said `its feel static beucase you just dont move the character` while the profile rendered it in corrected English, which makes the receipt untraceable. 24 of 31 quotes failed on the first pass of a profile that had been written carefully the same day; after correction, 29 of 30 trace to a real session.
+- The `v0.6.2` bootstrap runtime pins `emulo.py` to SHA-256 `982f51ed751a0a21` (prefix); `MINING_PROMPT.md` is unchanged at `ee22077c2cda3c1c` (prefix). Full digests in `.agents/skills/emulo/runtime.json`.
+- Not verified: `pip install emulo==0.6.2` from PyPI, because the version is not published at the time of writing. Run that against a clean virtualenv after the tag.
+
 ## 0.6.1 - 2026-07-26
 
 ### Fixed
