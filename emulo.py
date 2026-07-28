@@ -13,6 +13,8 @@ Selected redacted text is processed by the model provider you choose. Stdlib onl
 Usage:
     python emulo.py                     # auto-detect Codex + Claude + Copilot logs
     python emulo.py --dry-run           # preview counts without writing files
+    python emulo.py --coach             # how you use the model (no mining, no model call)
+    python emulo.py --coach --source claude   # ...for Claude Code only
     python emulo.py --card              # render your profile card (after mining)
     python emulo.py --install you.md --target codex
     python emulo.py --source codex      # only ~/.codex/sessions
@@ -171,6 +173,15 @@ def stable_session_id(path):
 INJECTED_CONTEXT_PREFIXES = (
     "# AGENTS.md instructions",
     "# CLAUDE.md instructions",
+    # An IDE extension stapling the open file and tab list onto the turn. It is
+    # the editor talking, not the user, and it repeats near-verbatim for as long
+    # as the same file stays open, so mining reads it as a deeply held rule and
+    # the usage report reads it as the same ask sent twelve times.
+    "# Context from my IDE setup:",
+    # Codex listing the files or pasted images attached to the turn. Same story:
+    # the harness describing the turn, not the user making a request. 1,800 of
+    # these were being mined as prose from one real corpus.
+    "# Files mentioned by the user",
     "<environment_context",
     "<in-app-browser-context",
     "<permissions instructions",
@@ -3024,6 +3035,283 @@ def print_counts(result, no_redact=False):
         print(f"duplicate specs/rules collapsed: {result['duplicates']}  (saves tokens, no signal lost)")
     print(f"secrets/PII redacted: {result['redactions']}" + ("  (redaction OFF)" if no_redact else ""))
 
+# ---------- usage report ----------
+#
+# A second reading of the same local logs, addressed to you instead of to the
+# agent. `you.md` answers "who is this person"; this answers "where is this
+# person losing time with the model". Deliberately deterministic: no model
+# call, no mining pass, no network, so it runs in seconds on a first install
+# and every number it prints traces back to dated messages you actually typed.
+#
+# It reads only your side of the conversation, which is all emulo ever keeps.
+# It cannot see cost, tokens, tool calls, or whether the agent was right, and
+# it never guesses at them. print_usage_report says so out loud.
+
+COACH_REPEAT_RUN_MIN = 3
+# Measured over 2,271 real sessions: without a word floor this finding is
+# almost entirely "ok" / "yes" / "ok do it" sent three times, which is approval,
+# not a loop. With the floor, the same corpus yields one genuine run. A repeat
+# only means something when the repeated thing carried an actual ask.
+COACH_REPEAT_MIN_WORDS = 4
+COACH_REWORD_RUN_MIN = 3
+COACH_REWORD_OVERLAP = 0.75
+COACH_REWORD_MIN_WORDS = 6
+# A rephrased ask is prose you typed. Word overlap alone cannot tell that apart
+# from the same artifact pasted twice, and on a real corpus the pasted kind was
+# the only thing this check ever caught, so require the candidates to be short
+# enough to be a sentence rather than a block.
+COACH_REWORD_MAX_LINES = 4
+COACH_QUOTE_CHARS = 120
+COACH_MAX_RECEIPTS = 3
+COACH_SHORT_PROMPT_WORDS = 5
+COACH_RESTATED_MIN = 3
+# Correcting the agent is normal; correcting it constantly is the signal. Ohad's
+# own corpus sits at 1.4%, so a lower bar would invent a problem out of ordinary
+# back-and-forth. This is a judgement call, and print_usage_report shows the
+# rate either way so you can disagree with it.
+COACH_CORRECTION_RATE = 5
+
+# Matched only at the start of a message, where a correction actually lands. A
+# bare "wrong" mid-sentence is usually describing a bug, not correcting the
+# agent, and counting those would inflate the number with your normal work.
+CORRECTION_OPENERS = (
+    "no ", "no,", "no.", "nope", "not that", "not what i", "that's not",
+    "thats not", "that's wrong", "thats wrong", "that is wrong", "still not",
+    "still wrong", "still broken", "wrong", "undo", "revert that", "stop,",
+)
+# "no need for the repo" opens with a correction opener and corrects nothing.
+COACH_NOT_CORRECTIONS = (
+    "no need", "no problem", "no worries", "no idea", "no rush", "no hurry",
+    "no big deal", "no clue",
+)
+
+# Distinctive enough to match anywhere in a message. These are people
+# re-supplying context the agent was already given and lost, which is the exact
+# gap a profile closes, so it is the one finding that points back at emulo.
+RESTATED_CONTEXT_MARKERS = (
+    "i already told you", "i already said", "i just told you", "as i said",
+    "like i said", "i told you", "i said before", "i keep telling you",
+    "as i mentioned", "i've told you", "ive told you", "i already asked",
+)
+
+def coach_normalize(text):
+    """Collapse whitespace/case/trailing punctuation so a resend reads as a resend."""
+    return re.sub(r"\s+", " ", text or "").strip().lower().strip(".!?, ")
+
+def coach_words(text):
+    return set(re.findall(r"[a-z0-9']+", (text or "").lower()))
+
+def coach_quote(text, marker=None):
+    """Quote the message, centred on `marker` when the match is buried in it.
+
+    A marker can land 400 characters into a long message, and quoting the
+    opening instead would show a receipt with no visible evidence in it. Window
+    the quote around the match so every claim can be checked by reading it.
+    """
+    one_line = re.sub(r"\s+", " ", (text or "").strip())
+    if len(one_line) <= COACH_QUOTE_CHARS:
+        return one_line
+    start = 0
+    if marker:
+        found = one_line.lower().find(marker)
+        if found > 0:
+            start = max(0, found - COACH_QUOTE_CHARS // 3)
+    clipped = one_line[start:start + COACH_QUOTE_CHARS].rstrip()
+    return ("..." if start else "") + clipped + "..."
+
+def coach_similar(left, right):
+    """Near-duplicate by word overlap, for asks that were reworded not repeated."""
+    if any(side.count("\n") > COACH_REWORD_MAX_LINES for side in (left, right)):
+        return False
+    a, b = coach_words(left), coach_words(right)
+    if len(a) < COACH_REWORD_MIN_WORDS or len(b) < COACH_REWORD_MIN_WORDS:
+        return False
+    union = a | b
+    if not union:
+        return False
+    return len(a & b) / len(union) >= COACH_REWORD_OVERLAP
+
+def coach_receipt(record, message, count=1, marker=None):
+    return {
+        "session_id": record["session_id"],
+        "source": record["source"],
+        "date": message["date"],
+        "ordinal": message["ordinal"],
+        "text": coach_quote(message["text"], marker),
+        "marker": marker or "",
+        "count": count,
+    }
+
+def coach_consecutive_runs(record, same):
+    """Group runs of consecutive messages where same(previous, current) holds.
+
+    Messages carry only your turns, so consecutive here means consecutive
+    prompts with the agent's reply in between: a real loop, not one message
+    split across lines.
+    """
+    runs = []
+    messages = [m for m in record.get("messages", []) if coach_normalize(m["text"])]
+    start = 0
+    while start < len(messages):
+        end = start + 1
+        while end < len(messages) and same(messages[end - 1]["text"], messages[end]["text"]):
+            end += 1
+        if end - start > 1:
+            runs.append((messages[start], end - start))
+        start = end
+    return runs
+
+def usage_findings(records):
+    repeats, rewords, restated, corrections = [], [], [], []
+    for record in records:
+        for message, length in coach_consecutive_runs(
+            record, lambda a, b: coach_normalize(a) == coach_normalize(b)
+        ):
+            if length >= COACH_REPEAT_RUN_MIN and len(coach_words(message["text"])) >= COACH_REPEAT_MIN_WORDS:
+                repeats.append(coach_receipt(record, message, length))
+        for message, length in coach_consecutive_runs(
+            record, lambda a, b: coach_normalize(a) != coach_normalize(b) and coach_similar(a, b)
+        ):
+            if length >= COACH_REWORD_RUN_MIN:
+                rewords.append(coach_receipt(record, message, length))
+        for message in record.get("messages", []):
+            normalized = coach_normalize(message["text"])
+            if not normalized:
+                continue
+            marker = next((m for m in RESTATED_CONTEXT_MARKERS if m in normalized), None)
+            if marker:
+                restated.append(coach_receipt(record, message, marker=marker))
+            if normalized.startswith(CORRECTION_OPENERS) and not normalized.startswith(COACH_NOT_CORRECTIONS):
+                corrections.append(coach_receipt(record, message))
+    for group in (repeats, rewords, restated, corrections):
+        group.sort(key=lambda item: (-item["count"], item["date"], item["session_id"], item["ordinal"]))
+    return repeats, rewords, restated, corrections
+
+def coach_distinct(receipts, limit):
+    """Sample receipts without showing the same quote twice."""
+    seen, out = set(), []
+    for receipt in receipts:
+        if receipt["text"] in seen:
+            continue
+        seen.add(receipt["text"])
+        out.append(receipt)
+        if len(out) >= limit:
+            break
+    return out
+
+def usage_report(records):
+    """Deterministic usage findings over mined records. No model, no network."""
+    repeats, rewords, restated, corrections = usage_findings(records)
+    messages = [m for record in records for m in record.get("messages", [])]
+    total = len(messages)
+    word_counts = sorted(len(coach_words(m["text"])) for m in messages)
+    dates = sorted(m["date"] for m in messages if m["date"] != "undated")
+    sources = {}
+    for record in records:
+        sources[record["source"]] = sources.get(record["source"], 0) + 1
+
+    def finding(key, title, meaning, receipts, occurrences, flagged):
+        return {
+            "key": key,
+            "title": title,
+            "meaning": meaning,
+            "occurrences": occurrences,
+            "flagged": bool(flagged),
+            "receipts": coach_distinct(receipts, COACH_MAX_RECEIPTS),
+        }
+
+    correction_rate = (100 * len(corrections) // total) if total else 0
+    findings = [
+        finding(
+            "repeat_sends",
+            "You resend the same message instead of changing it.",
+            "When the same real ask goes out three times in a row, the model had "
+            "already given everything that prompt could get. Rewording once beats "
+            "sending it again.",
+            repeats,
+            sum(item["count"] for item in repeats),
+            repeats,
+        ),
+        finding(
+            "restated_context",
+            "You re-explain things the agent was already told.",
+            "Every one of these is context you paid for twice. This is the gap a "
+            "profile closes: state it once, install it, stop retyping it.",
+            restated,
+            len(restated),
+            len(restated) >= COACH_RESTATED_MIN,
+        ),
+        finding(
+            "reword_loops",
+            "You rephrase the same ask several turns in a row.",
+            "Three near-identical asks back to back usually means the first one was "
+            "missing a constraint, not that the wording was wrong.",
+            rewords,
+            sum(item["count"] for item in rewords),
+            rewords,
+        ),
+        finding(
+            "corrections",
+            "You open turns by correcting the last answer.",
+            f"At {correction_rate}% of your messages this is high enough to point at "
+            "the opening prompt rather than the model: the constraint you correct "
+            "toward is the one worth stating up front.",
+            corrections,
+            len(corrections),
+            correction_rate >= COACH_CORRECTION_RATE,
+        ),
+    ]
+    return {
+        "sessions": len(records),
+        "messages": total,
+        "first_date": dates[0] if dates else "",
+        "last_date": dates[-1] if dates else "",
+        "sources": sources,
+        "median_words": word_counts[len(word_counts) // 2] if word_counts else 0,
+        "short_prompts": sum(1 for count in word_counts if count <= COACH_SHORT_PROMPT_WORDS),
+        "correction_rate": correction_rate,
+        "findings": [item for item in findings if item["flagged"]],
+        "clean": [{"title": item["title"], "occurrences": item["occurrences"]}
+                  for item in findings if not item["flagged"]],
+    }
+
+def print_usage_report(report):
+    span = (f"{report['first_date']} to {report['last_date']}"
+            if report["first_date"] else "undated")
+    sources = ", ".join(f"{name} {count}"
+                        for name, count in sorted(report["sources"].items()))
+    print("emulo usage report")
+    print(f"read {report['sessions']} sessions, {report['messages']:,} of your messages, {span}")
+    if sources:
+        print(f"sources: {sources}")
+    print()
+
+    if not report["findings"]:
+        print("Nothing to flag. Every check below came back under its bar.")
+        print()
+    for index, item in enumerate(report["findings"], start=1):
+        print(f"{index}. {item['title']}")
+        print(f"   {item['occurrences']} message(s). {item['meaning']}")
+        for receipt in item["receipts"]:
+            suffix = f"  x{receipt['count']}" if receipt["count"] > 1 else ""
+            print(f"   {receipt['date']}  \"{receipt['text']}\"{suffix}")
+        print()
+
+    if report["clean"]:
+        print("Under the bar:")
+        for item in report["clean"]:
+            seen = f"{item['occurrences']} seen" if item["occurrences"] else "none"
+            print(f"   {item['title']}  ({seen})")
+        print()
+
+    share = (100 * report["short_prompts"] // report["messages"]) if report["messages"] else 0
+    print(f"Median prompt: {report['median_words']} words. "
+          f"{share}% are {COACH_SHORT_PROMPT_WORDS} words or fewer.")
+    print()
+    print("This reads only the messages you typed, which is all emulo keeps. It cannot")
+    print("see cost, tokens, tool calls, or whether the agent was right, so it never")
+    print("scores those. Every line above is countable from your own logs.")
+
 def strip_frontmatter(text):
     if not text.startswith("---\n"):
         return text.strip()
@@ -4242,6 +4530,9 @@ def legacy_main():
     ap.add_argument("--dry-run", action="store_true", help="show counts and output paths without writing files")
     ap.add_argument("--no-redact", action="store_true", help="skip redaction (NOT recommended)")
     ap.add_argument("--no-dedupe", action="store_true", help="keep verbatim-duplicate long messages (re-pasted specs / injected rules)")
+    ap.add_argument("--coach", action="store_true",
+                    help="report how you use the model (repeat sends, restated context) without mining")
+    ap.add_argument("--json", action="store_true", help="emit --coach output as JSON")
     ap.add_argument("--card", nargs="?", const="", metavar="CARD_JSON",
                     help="render your profile card (terminal + card.html) from emulo-out/card.json")
     ap.add_argument("--no-open", action="store_true", help="don't open card.html in the browser")
@@ -4280,11 +4571,22 @@ def legacy_main():
         print("looked in:", ", ".join(roots))
         sys.exit(1)
 
-    result = mine_files(files, args.no_redact, dedupe=not args.no_dedupe)
+    # --coach counts repeats, so it must never run the long-duplicate collapse:
+    # that is exactly the signal it is looking for.
+    result = mine_files(files, args.no_redact,
+                        dedupe=False if args.coach else not args.no_dedupe)
 
     if result["sessions"] == 0:
         print("no valid user sessions remained after parsing and filtering", file=sys.stderr)
         sys.exit(1)
+
+    if args.coach:
+        report = usage_report(result["records"])
+        if args.json:
+            print(json.dumps(report, indent=2, ensure_ascii=False))
+        else:
+            print_usage_report(report)
+        return
 
     if args.dry_run:
         print("dry run: no files written")
