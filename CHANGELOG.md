@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`emulo.py --coach` reports how you use the model, without mining anything.** The first substantive reply to the outreach round asked for exactly this: a mode focused on improving Claude Code usage rather than extracting conventions. The data was already there. Failure modes are mined today, but they are written to the agent under "protect this person from these" and never addressed to the person. `--coach` reads the same local logs and answers the other question: asks sent three times in a row unchanged, context re-explained after the agent lost it, runs of rephrasing the same request, and the rate of turns that open by correcting the last answer. It makes no model call and writes no corpus, so it runs in seconds on a first install, before anyone has decided whether mining is worth it. `--source claude` narrows it to Claude Code, and `--json` emits the same report for other tools to consume.
+- Every finding carries the dated messages behind it, and a quote whose evidence sits 400 characters into a long message is windowed onto the match rather than clipped from the start, because a receipt you cannot read is not a receipt. Checks that come in under their bar are printed with their counts, so a clean result reads as a measured result and not as a check that did not run.
+
+### Fixed
+
+- **Two harness preambles were being mined as things the user wrote.** `# Context from my IDE setup:` (an editor stapling the open file and tab list onto the turn) and `# Files mentioned by the user` (Codex listing attachments) both reached the corpus as ordinary prose. On one real corpus that is 2,543 messages, and because they repeat near-verbatim for as long as the same file stays open, mining reads them as deeply held rules. Both are now in `INJECTED_CONTEXT_PREFIXES`, which fixes the mined profile as well as the report. Found by running `--coach` against real logs and reading the receipts it printed: the loudest finding in the first run was an IDE preamble counted as the same ask sent twelve times.
+
+### Verified
+
+- Thresholds were set by measurement against a real 2,271-session corpus rather than by guess, and the measurement changed the feature three times. Repeat runs with no word floor were almost entirely `ok`, `yes`, and `ok do it` sent three times, which is approval and not a loop; with a four-word floor the same corpus yields one genuine run. Widening the rule from consecutive sends to sends within three turns added only filler repeated 84 turns apart, so the rule stayed strict.
+- Sampling the matches caught two more defects before release. `no need for the repo` counted as a correction, and a 1.4% correction rate was being reported as a problem, so corrections now need to clear a rate bar and the rate prints either way for anyone who wants to disagree with the bar.
+- **The reword-loop check is unproven and is shipping anyway, which is worth stating plainly.** Across every corpus available to test it, it fired exactly once, on a pasted pygame banner sent three times, and a line-count guard now excludes that shape. It has no confirmed true positive. It ships because the behaviour it looks for is real and cheap to check, and because a check that finds nothing prints its zero rather than staying silent. Treat a hit from it with more suspicion than a hit from the other three.
+- Full suite passes: 444 tests, 4 skipped, 0 failures. 29 of those tests are new and cover the loop detectors, the exclusions, receipt quality, the injected preambles, redaction of receipts, and the promise that `--coach` leaves no files behind.
+- Known limits, stated in the report itself: it reads only the messages you typed, which is all Emulo keeps, so it cannot see cost, tokens, tool calls, or whether the agent was right, and it does not score them.
+
 ## 0.6.2 - 2026-07-27
 
 ### Added
