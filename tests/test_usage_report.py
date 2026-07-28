@@ -301,14 +301,18 @@ class CoachCliTest(unittest.TestCase):
     def test_coach_redacts_receipts_by_default(self):
         with tempfile.TemporaryDirectory() as tmp:
             logs = Path(tmp) / "logs"
-            secret = "i told you the key is sk-abcdefghijklmnopqrstuvwxyz012345"
+            # Assembled at runtime on purpose. Written inline this matches the
+            # same REDACTIONS pattern it is testing, and a repo secret scanner
+            # cannot tell a fixture key from a real one that leaked.
+            fake_key = "sk-" + "abcdefghijklmnopqrstuvwxyz012345"
+            secret = f"i told you the key is {fake_key}"
             write_jsonl(logs / "session.jsonl", [codex_turn(secret, 0)])
             proc = subprocess.run(
                 [sys.executable, str(EMULO), "--coach", "--path", str(logs), "--json"],
                 capture_output=True, text=True, cwd=tmp,
             )
             self.assertEqual(proc.returncode, 0, proc.stderr)
-            self.assertNotIn("sk-abcdefghijklmnopqrstuvwxyz012345", proc.stdout)
+            self.assertNotIn(fake_key, proc.stdout)
 
 
 if __name__ == "__main__":
