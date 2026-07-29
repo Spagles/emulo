@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f1e8">
+  <meta name="description" content="Download Emulo Pro for Windows. Free download, sign in once with Google or GitHub, then it runs on your machine with no network.">
+  <link rel="icon" type="image/png" href="/assets/emulo.png">
+  <link rel="stylesheet" href="/legal.css">
+  <link rel="canonical" href="https://emulo.vercel.app/download.html">
+  <title>Emulo Pro | Download for Windows</title>
+
+  <meta property="og:title" content="Emulo Pro | Download for Windows">
+  <meta property="og:description" content="Free download. Sign in once with Google or GitHub. Then it runs on your machine, offline.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://emulo.vercel.app/download.html">
+  <meta property="og:site_name" content="Emulo">
+
+  <style>
+    /* The download page has three things the legal pages do not: a primary
+       action, a checksum you are meant to copy, and a short ordered walk
+       through first run. Everything else inherits legal.css so this page
+       cannot drift away from the rest of the site. */
+    .download-lead { font-size: 19px; margin: 0 0 28px; }
+
+    .get {
+      margin: 28px 0 12px;
+      padding: 22px 24px;
+      border: 1px solid var(--line);
+      background: #fffdf8;
+    }
+    .get p { margin: 0; }
+    .get-action {
+      display: inline-block;
+      margin-bottom: 10px;
+      padding: 12px 22px;
+      border: 1px solid var(--ink);
+      background: var(--ink);
+      color: var(--paper);
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-decoration: none;
+    }
+    .get-action:hover { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+    /* The waiting state reads as an empty shelf, not a button someone should
+       try. No fill, no hover, nothing that invites a click. */
+    .get-action--waiting {
+      background: none;
+      color: var(--muted);
+      border-style: dashed;
+      border-color: var(--line);
+      cursor: default;
+    }
+    .get-meta { color: var(--muted); font-size: 14px; }
+
+    /* A checksum is only useful if it can be copied without picking up a
+       line break, so it gets its own block and wraps on character. */
+    .checksum {
+      margin: 4px 0 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+      overflow-wrap: anywhere;
+      color: var(--body);
+    }
+
+    pre {
+      margin: 12px 0 20px;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      background: #fffdf8;
+      overflow-x: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13.5px;
+      line-height: 1.6;
+    }
+
+    ol.steps { margin: 0 0 24px; padding-left: 20px; }
+    ol.steps li { margin-bottom: 10px; }
+
+    .note {
+      margin: 24px 0;
+      padding: 16px 18px;
+      border-left: 3px solid var(--accent);
+      background: #fffdf8;
+      font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+  <header class="legal-header"><a href="/"><img src="/assets/emulo.png" alt=""><span>EMULO</span></a></header>
+
+  <main class="legal-document">
+    <p class="legal-kicker">Emulo Pro</p>
+    <h1>Download</h1>
+    <p class="download-lead">The download is free. You sign in once on first run, and after that Emulo runs on your machine — no network needed, nothing uploaded.</p>
+
+    <!-- Deliberately not a link. Emulo Pro has no published release yet, and a
+         primary button that does nothing when clicked is worse than an honest
+         empty state -- it is the same sin as a progress bar that means nothing.
+         When the first signed release exists, this becomes an <a> pointing at
+         the zip and the checksum below is filled in from the manifest. -->
+    <div class="get">
+      <p><span class="get-action get-action--waiting">Not published yet</span></p>
+      <p class="get-meta">Windows &middot; Python 3.11 &middot; one zip</p>
+      <p class="get-meta" style="margin-top:12px">SHA-256 of the zip:</p>
+      <p class="checksum" id="checksum">Published with the first release.</p>
+    </div>
+
+    <p class="legal-updated">Everything below is how the download works once it exists. The button turns on with the first signed release, and the checksum fills in beside it.</p>
+
+    <h2>1. Check what you got</h2>
+    <p>Before unpacking anything, compare the hash of the file you downloaded against the one printed above. It takes a second and it is the whole point of publishing it.</p>
+<pre>Get-FileHash .\emulo-pro-*.zip -Algorithm SHA256</pre>
+    <p>If it does not match, do not install it. Download it again.</p>
+    <p>A file named <code>emulo-pro-&lt;version&gt;-rehearsal.zip</code> is a build rehearsal, not a release. It says so in the filename on purpose, so you never have to open one to find out.</p>
+
+    <h2>2. Install</h2>
+    <p>Unpack the zip and double-click <strong>Install Emulo.cmd</strong>. It installs into your Windows account. No administrator access is needed.</p>
+    <p>If it cannot find Python 3.11, install Python 3.11 and run it again. Pro checks the integrity of every file it reads, and Python 3.13 on Windows reports file timestamps inconsistently enough to break that check — so installing on 3.13 is refused outright rather than allowed to fail strangely later.</p>
+    <p>There is a manual route too, in the install guide inside the zip.</p>
+
+    <h2>3. Sign in, once</h2>
+    <p>The first run shows a short code and opens your browser. You sign in there with Google or GitHub and enter the code.</p>
+    <div class="note">
+      <strong>Emulo never sees your password.</strong> The browser does the authenticating and Emulo only ever receives a token for this device. There is no password field anywhere in Emulo, and there never will be.
+    </div>
+    <p>After that this device stays signed in. The licence lives on your machine and is checked locally, so Emulo keeps working with no network at all. It renews itself quietly when you are online; when you are not, nothing breaks and nothing nags.</p>
+
+    <h2>What it does with your sessions</h2>
+    <p>It reads the AI coding sessions already on your computer and turns what you actually do into skills, workflows and a profile your agent reads before every task. Raw sessions, local paths and decryption keys never leave the device. The <a href="/privacy.html">privacy policy</a> is the long version.</p>
+
+    <h2>Requirements</h2>
+    <ol class="steps">
+      <li>Windows.</li>
+      <li>Python 3.11 — exactly, for the reason above.</li>
+      <li>Claude Code or Codex installed, so there are sessions to read. Emulo runs through the agent you already have, so there is no API key to add.</li>
+    </ol>
+
+    <h2>The open-source CLI</h2>
+    <p>Emulo the profile miner is open source and needs none of this. <code>pip install emulo</code>, or read the <a href="https://github.com/ohad6k/emulo">repository</a>. Pro is the Museum: the desktop app, the reference board, the curator and the workflows.</p>
+  </main>
+
+  <footer class="legal-footer"><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="/refunds.html">Refunds</a><a href="mailto:ohadkrispin@gmail.com">Contact</a></footer>
+</body>
+</html>
