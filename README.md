@@ -69,6 +69,9 @@ thought to write down, I refund you and tell you why.**
 I will not claim this makes your agent better. I restructured evidence you
 produced, and you will judge whether it helped faster if I have not oversold it.
 
+Paid by invoice or PayPal. This is a service, not a product in the store, so it
+does not go through the Emulo checkout.
+
 [ohadkrispin@gmail.com](mailto:ohadkrispin@gmail.com?subject=Emulo%20Profile%20Build)
 
 ## Not memory
