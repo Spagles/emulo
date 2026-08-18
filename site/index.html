@@ -34,7 +34,9 @@
   "license": "https://opensource.org/licenses/MIT",
   "programmingLanguage": "Python",
   "offers": [
-    { "@type": "Offer", "name": "Open-source Emulo", "price": "0", "priceCurrency": "USD" }
+    { "@type": "Offer", "name": "Open-source Emulo", "price": "0", "priceCurrency": "USD" },
+    { "@type": "Offer", "name": "Emulo Pro Monthly", "price": "12", "priceCurrency": "USD" },
+    { "@type": "Offer", "name": "Emulo Pro Annual", "price": "99", "priceCurrency": "USD" }
   ],
   "author": { "@type": "Person", "name": "ohad6k", "url": "https://github.com/ohad6k" }
 }
@@ -434,13 +436,6 @@ h2{
 .pro-plan a:hover{background:var(--paper-2);color:var(--ink)}
 .pro-plan a:active{transform:translateY(1px)}
 
-/* ---- TEMPORARY: Pro checkout not open yet (2026-07-20) ----
-   CSS only, no markup touched, so it cannot collide with work in flight.
-   TO REVERT WHEN PRO GOES LIVE: delete this block. Nothing else changed. */
-.pro-plan a{pointer-events:none;color:rgba(255,255,255,.5);border-color:rgba(255,255,255,.25);font-size:0}
-.pro-plan a::after{content:"Coming soon";font-size:10px;letter-spacing:.14em}
-.pro-plan a:hover{background:none;color:rgba(255,255,255,.5)}
-/* ---- END TEMPORARY ---- */
 
 /* works with — slow marquee */
 .works{border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);padding:24px 0;overflow:hidden;position:relative;z-index:3;background:var(--paper)}
@@ -696,9 +691,9 @@ footer a:hover{color:var(--red)}
     <div class="sec-head reveal">
       <span class="num">IV.</span>
       <div>
-        <span class="label">Open source, plus a hand when you want one</span>
-        <h2>Start free. Ask for help with the part that is judgment.</h2>
-        <p>Emulo runs on your machine and stays useful without an account. The step that stops most people is deciding which mined rules are actually true about them. That is the part I do with you.</p>
+        <span class="label">Open source, plus a subscription when the profile has to stay current</span>
+        <h2>Start free. Add Pro when your profile has to keep up with you.</h2>
+        <p>Emulo runs on your machine and stays useful without an account. Mining is a snapshot, though, and the way you work moves. Pro is the part that keeps the snapshot honest.</p>
       </div>
     </div>
     <div class="price-ledger reveal">
@@ -717,20 +712,28 @@ footer a:hover{color:var(--red)}
       </article>
 
       <article class="price-pane price-pro">
-        <span class="label pro-label">Profile Build</span>
-        <h3>I do the judgment pass with you.</h3>
-        <p>The mining takes seconds. Reading the draft and cutting every rule that is vague, generic, or true of every developer alive is the part nobody wants to do. You run the mine on your own machine and send me only the draft profile.</p>
-        <div class="price-mark"><strong>$300</strong><span>one profile</span></div>
+        <span class="label pro-label">Emulo Pro</span>
+        <h3>Keep your profile current.</h3>
+        <p>A mined profile is a snapshot. The day after you run it, it starts drifting behind how you actually work. Pro keeps reading your new sessions on your own machine and folds them back in, so what your agents load is how you work now.</p>
         <ul class="price-list">
-          <li>Your session logs never leave your machine</li>
-          <li>Every rule without real support gets cut, not softened</li>
-          <li>Restructured into work, design, writing and video layers</li>
-          <li>Install lines for Claude Code, Codex, Cursor, Gemini and OpenCode</li>
-          <li>Three business days, no call needed</li>
-          <li>Refunded if it does not contain three rules you would never have written down yourself</li>
-          <li>Invoice or PayPal, not through the store</li>
+          <li>Continuous local scan of new Claude Code and Codex sessions</li>
+          <li>Your profile kept current instead of re-mined by hand</li>
+          <li>Session logs never leave your machine</li>
+          <li>The CLI, the app, the Museum and export stay free</li>
+          <li>Cancel anytime. Ending it never disables the app or your profile</li>
         </ul>
-        <a class="price-link" href="mailto:ohadkrispin@gmail.com?subject=Emulo%20Profile%20Build">Send me your draft</a>
+        <div class="pro-plans">
+          <div class="pro-plan">
+            <div><strong>Monthly</strong><small>Flexible access</small></div>
+            <div class="amount">$12 <span>/ month</span></div>
+            <a href="https://emulo-production.ohad1306.workers.dev/account" aria-label="Choose Emulo Pro monthly">Choose monthly</a>
+          </div>
+          <div class="pro-plan">
+            <div><strong>Annual</strong><small>One year</small></div>
+            <div class="amount"><s>$144</s> $99 <span>/ year</span><em>Save 31%</em></div>
+            <a href="https://emulo-production.ohad1306.workers.dev/account" aria-label="Choose Emulo Pro annual">Choose annual</a>
+          </div>
+        </div>
       </article>
     </div>
   </div>
