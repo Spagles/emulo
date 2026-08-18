@@ -63,6 +63,21 @@ adapters all stay on your machine. The one exception is mining: if you point it
 at a hosted model, the selected evidence goes to that provider. Point it at a
 local model and the whole run stays on your machine.
 
+## Emulo Pro, $12 a month
+
+Everything above is free forever and it always will be. Pro adds one thing.
+
+Mining is a snapshot. The day after you run it, it starts drifting behind how you
+actually work, and keeping it current means running the miner again yourself. Pro
+scans new Claude Code and Codex sessions continuously on your own machine and
+folds them back in.
+
+That is the whole difference. The CLI, the mining, the profile, the export and
+the source stay free and MIT, and cancelling never touches anything you have
+already mined.
+
+$12 a month or $99 a year, at [emulo.vercel.app](https://emulo.vercel.app).
+
 ## Profile Build, $300
 
 Mining takes seconds. Deciding which of the mined rules are actually true about

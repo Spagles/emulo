@@ -84,14 +84,15 @@ class SitePricingTests(unittest.TestCase):
                 self.assertNotIn(rejected, self.html)
 
     def test_pro_claims_only_what_the_licence_actually_gates(self):
-        """`cli.py` gates exactly one feature, scan-sessions. The Museum, the
-        collection, export and recovery stay free. The page must not imply the
-        subscription buys more than that."""
+        """`cli.py` gates exactly one feature, scan-sessions. Everything else
+        stays free. The page must not imply the subscription buys more than
+        that, and it must not sell the desktop app or the Museum, which are no
+        longer part of the offer."""
         pricing = self.pricing()
-        self.assertIn("Session logs never leave your machine", pricing)
+        self.assertIn("runs entirely on your machine", pricing)
         self.assertIn("stay free", pricing)
         for overclaim in ("unlimited", "available today", "encrypted sync",
-                          "five devices"):
+                          "five devices", "museum", "the app"):
             with self.subTest(overclaim=overclaim):
                 self.assertNotIn(overclaim, pricing.lower())
 
