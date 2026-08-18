@@ -55,18 +55,20 @@ class SitePricingTests(unittest.TestCase):
             self.assertIn(text, pricing)
         self.assertIn("local", pricing.lower())
 
-    def test_pro_shows_both_prices_and_says_it_is_not_open(self):
-        """Checkout is closed until a real payment is proven to unlock
-        scan-sessions on a machine that is not Ohad's. The prices stay visible
-        so the page is honest about what Pro will cost, but there must be no
-        way to pay and no unexplained silence next to a number."""
+    def test_the_pane_sells_only_what_can_be_delivered_today(self):
+        """The subscription cannot be sold: the gated scan never invokes an
+        engine and its policy directory does not exist, so a buyer would unlock
+        nothing. The pane sells the Profile Build instead, which is delivered by
+        hand and needs no code path."""
         pricing = self.pricing()
-        self.assertIn(f"${MONTHLY} ", pricing)
-        self.assertIn(f"${YEARLY} ", pricing)
-        self.assertIn("Not open yet", pricing)
-        self.assertNotIn("Choose monthly", pricing)
-        self.assertNotIn("Choose annual", pricing)
-        self.assertNotIn(ACCOUNT_URL, pricing)
+        self.assertIn("Profile Build", pricing)
+        self.assertIn("$300", pricing)
+        self.assertIn("ohadkrispin@gmail.com", pricing)
+        self.assertIn("emulo.py --coach --json", pricing)
+        for closed in ("Choose monthly", "Choose annual", ACCOUNT_URL,
+                       f"${MONTHLY} ", f"${YEARLY} "):
+            with self.subTest(closed=closed):
+                self.assertNotIn(closed, pricing)
 
     def test_visible_prices_and_structured_data_agree(self):
         """The invariant that was actually violated: schema said $9 and $79
@@ -93,8 +95,10 @@ class SitePricingTests(unittest.TestCase):
         that, and it must not sell the desktop app or the Museum, which are no
         longer part of the offer."""
         pricing = self.pricing()
-        self.assertIn("runs entirely on your machine", pricing)
-        self.assertIn("stay free", pricing)
+        self.assertIn("I never ask for your session logs", pricing)
+        for sold in ("/ month", "/ year", "Add Pro"):
+            with self.subTest(sold=sold):
+                self.assertNotIn(sold, pricing)
         for overclaim in ("unlimited", "available today", "encrypted sync",
                           "five devices", "museum", "the app"):
             with self.subTest(overclaim=overclaim):
@@ -110,7 +114,6 @@ class SitePricingTests(unittest.TestCase):
         for gone in ("Choose monthly", "Choose annual", "/download?start=1"):
             with self.subTest(gone=gone):
                 self.assertNotIn(gone, self.html)
-        self.assertIn("Not open yet", self.html)
         for dead in ("download.html", "releases.json", "emulo-pro-1.0.0.zip"):
             with self.subTest(dead=dead):
                 self.assertFalse((SITE.parent / dead).exists(),
