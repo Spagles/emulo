@@ -21,6 +21,20 @@ The mined profile loads where your agents already live: Claude Code and Codex na
 
 The [Emulo Proof v1 methodology](docs/proof/README.md) is an unexecuted methodology until a separately approved evidence release exists.
 
+## The video layer, and where it comes from
+
+<p align="center"><img src="assets/vercel-spec-loop.webp" width="760" alt="A spec commercial made in Claude Design"></p>
+
+A spec commercial, made in Claude Design. No After Effects and no motion software:
+the whole thing is a composition rendered out to video.
+
+It is **spec work**. It was not commissioned by Vercel and it was not made for
+them. A brand was picked to see how far the motion could go.
+
+It is here because `emulo:video` is mined from sessions like the one that
+produced it. The other layers work the same way: the profile is not a template,
+it is what survived from real work.
+
 ## Install
 
 Inside Claude Code:
