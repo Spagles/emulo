@@ -55,14 +55,18 @@ class SitePricingTests(unittest.TestCase):
             self.assertIn(text, pricing)
         self.assertIn("local", pricing.lower())
 
-    def test_pro_shows_both_live_prices_and_a_way_to_buy(self):
+    def test_pro_shows_both_prices_and_says_it_is_not_open(self):
+        """Checkout is closed until a real payment is proven to unlock
+        scan-sessions on a machine that is not Ohad's. The prices stay visible
+        so the page is honest about what Pro will cost, but there must be no
+        way to pay and no unexplained silence next to a number."""
         pricing = self.pricing()
         self.assertIn(f"${MONTHLY} ", pricing)
         self.assertIn(f"${YEARLY} ", pricing)
-        self.assertIn("Choose monthly", pricing)
-        self.assertIn("Choose annual", pricing)
-        # A price with no reachable checkout is the old failure in reverse.
-        self.assertIn(ACCOUNT_URL, pricing)
+        self.assertIn("Not open yet", pricing)
+        self.assertNotIn("Choose monthly", pricing)
+        self.assertNotIn("Choose annual", pricing)
+        self.assertNotIn(ACCOUNT_URL, pricing)
 
     def test_visible_prices_and_structured_data_agree(self):
         """The invariant that was actually violated: schema said $9 and $79
@@ -95,6 +99,22 @@ class SitePricingTests(unittest.TestCase):
                           "five devices", "museum", "the app"):
             with self.subTest(overclaim=overclaim):
                 self.assertNotIn(overclaim, pricing.lower())
+
+
+    def test_checkout_is_closed_until_a_real_payment_unlocks_it(self):
+        """Nothing in the shipped product fetches a licence lease, so the paid
+        gate cannot pass on any machine. Until one real payment is proven to
+        unlock scan-sessions, the site must not take money and must not serve
+        the desktop bundle."""
+        self.assertNotIn("workers.dev/account", self.html)
+        for gone in ("Choose monthly", "Choose annual", "/download?start=1"):
+            with self.subTest(gone=gone):
+                self.assertNotIn(gone, self.html)
+        self.assertIn("Not open yet", self.html)
+        for dead in ("download.html", "releases.json", "emulo-pro-1.0.0.zip"):
+            with self.subTest(dead=dead):
+                self.assertFalse((SITE.parent / dead).exists(),
+                                 f"{dead} must not ship while checkout is closed")
 
     def test_static_site_leaks_no_secret_or_product_id(self):
         for host in ("checkout.polar.sh", "sandbox.polar.sh", "buy.polar.sh"):
