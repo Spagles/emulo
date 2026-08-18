@@ -531,7 +531,156 @@ cause the film. A chip being struck is what recolours the page. Then collision,
 causality and real product behaviour are the same move, and the film cannot be
 described without naming the product.
 
-## 9. Build it, look at it, then continue
+## 9. What physically happens in the beat
+
+Everything in section 8 can be green on a film that comes back rejected. The
+verbatim verdict on one that was: "its just boring words with ok animations
+instead of showing crazy animation crazy things happening with animation like
+you did with the hook with the puppet inside the chatbox ui." That build cleared
+the structure, the coverage floors and the energy floors. It was still a
+sequence of phrases arriving over a lit ground.
+
+Read `videos/_handoff/_film-sources/ITERATION-LOG.md` before you write a brief.
+It is the only file that records what was rejected, in his words, next to what
+replaced it. Finished code cannot tell you the words were there first.
+
+### The per-beat test
+
+For every `OM_SCENES` entry, write three lines before anything is built. If line
+2 is empty, the beat is a card, and a card reads as boring however it eases in.
+
+1. the phrase on screen
+2. **a body** doing something, named with a verb: dives, hammers, hops, is pulled off its feet
+3. the surface it does it to, named as a kit file or a rebuilt UI part
+
+**A body is a character or an object with mass. A word is not a body.** Letters
+that hammer, shatter or fly are still kinetic typography, which is the exact
+thing that got rejected. If line 2 names the phrase itself, the test fails.
+
+Rejected: "Create completely" over a fixed box at `left: 1090, top: 224,
+width: 470, height: 630`, whose children only widen in place
+(`claude-film.jsx:530-537`). Approved: nine blocks fly in from
+`left: tx + Math.cos(a) * 1000 * (1 - p)`, each carrying `blur(6 * (1 - p))` and
+`rotate((1-p) * 26deg) scale(.7 + .3*p)` on a 52ms stagger, while a body hammers
+alongside and squashes on every landing (`claude-master.jsx:1012-1044`).
+
+Note what separates them, because it is not the count of pieces. Nine flying
+rectangles with no body beside them is still the rejected beat with more parts.
+
+### Ban grow-in-place
+
+Fixed `left` and `top` with `width`, `height` or `opacity` animating inside the
+object's own bounding box is what a model writes by default, because it is safe
+and can never collide. Every hero entrance carries position, rotation, blur and
+scale at once, and starts **at least 0.35 of stage width outside where it
+lands**. Express every distance as a fraction of stage width, never in raw
+pixels: the films are authored at 1920x1080 and the rebuilt UI at 2560x1600, so
+a pixel figure copied between them is wrong by a third.
+
+An object that travelled has a before-state the viewer never saw, so its arrival
+carries information. An object that grew was always there.
+
+### The character must be attached to real geometry
+
+Derive the body's transform from the target object's live animated values every
+frame, including rotation:
+
+```
+const rad = bars[0].rot * Math.PI / 180;
+cx0 = bars[0].x - Math.cos(rad) * bars[0].w / 2;
+cy0 = bars[0].y - Math.sin(rad) * bars[0].w / 2 - 34;
+rotc = bars[0].rot - 90;
+```
+
+That expression is the tip of the rotated bar, and `rot - 90` keeps the body
+standing perpendicular on it (`claude-master.jsx:833-838`). Generate paths from
+the target's own data too, so a climb right to left is an emergent property of
+the chart rather than an authored path that happens to match.
+
+**The reference film also gets this wrong, and you should see where.** In the
+research dive the source cards compute `cy = -180 + 1460 * easeInOutCubic(rDive)`
+while the critter three lines below is `y = -200 + 1500 * easeInOutCubic(rDive)`.
+Two independent expressions off one progress variable, 20px apart at the start
+and 60px at the end. Delete the critter and every card lights exactly the same.
+It reads acceptably and it is still a sticker, and it will drift the first time
+anything is retimed. Couple to the object, not to a shared clock.
+
+### Simulated UI, operated at speed
+
+He asked for this by name: "i want like in the reference video when it shows like
+a mimic ui fast paced doing on it with the mouse and text and stuff." Section 7
+bans faking a screen as static art. It does not ban rebuilding one. **Never draw
+a grey rectangle standing in for a product screen. Rebuild the UI as live DOM,
+one element per part, and operate it.** When a film has a product in it, it must
+carry at least one operated-UI beat.
+
+- **Rebuild, do not screenshot.** `ui.jsx` builds sidebar, top bar, greeting, six
+  shortcut tiles and a six-card carousel as separate positioned divs. A
+  screenshot can only be pushed and cropped. A DOM rebuild lets one card lift.
+- **The cursor is an object with momentum**, and every key carries its intent in
+  a comment. `film.jsx` BALL_RAW is 39 keyframes: `{ t: 2.80, x: 812, y: 872 }`
+  grabs the progress knob, `{ t: 3.86, x: 960, y: 836 }` punches play. A failure
+  is recorded in the same file: easeInOut on consecutive keys made the roll stop
+  and restart at every card. Use one ease-out across the span and let friction
+  decelerate.
+- **Sample the path, then derive everything from one number.**
+  `const bPrev = ballAt(T - 0.022); const speed = Math.hypot(vx, vy)` feeds
+  squash `clamp(speed/5200, 0, .46)`, heading `Math.atan2`, motion blur
+  `clamp(speed/900, 0, 9)`, trail opacity and audio gain. Hand-keying five of
+  those separately is how a fast move ends up mismatched.
+- **Every UI state change is caused by an impact**, and the two tables share
+  timestamps: `IMP = [0.30, 2.62, 3.86, 4.24, ...]` against
+  `HOME_TRIG = [4.24, 4.52, 4.80, 5.08, ...]`, each region a 40ms staggered
+  cascade off its own hit. A screen that assembles on a schedule is a slideshow.
+  A screen that answers 300ms after something hits it is alive.
+- **One impact function drives shake, camera bump and blur together**, sign
+  flipping on alternate hits: `Math.pow(1 - d/.34, 2.1) * Math.sin(d*108) *
+  (i % 2 ? 1 : -1)`, consumed as `cam.s *= 1 + sh*.022`, `shakeX = sh*11`,
+  `mBlur = min(abs(sh)*4, 7)`. Fifteen hits in sixteen seconds, none of them
+  feeling repeated.
+- **A control being operated reads its value off the cursor**, it is not keyed
+  alongside it: `scrubF = clamp((b.x - TR0)/(TR1 - TR0), 0, 1)`. Two objects
+  keyed in parallel drift a few pixels and the shot reads fake.
+- **A click is three asymmetric ramps**: 80ms down, 20ms held, 120ms up, with the
+  button swelling 12% starting 160ms before contact. Symmetric press animation
+  reads as a CSS demo.
+- **Passing near a thing knocks it, by distance not by keyframe**:
+  `knock = rolling * max(0, 1 - abs(b.x - CARD_CX(i))/120)`. Hand-authored
+  reaction windows break the moment you retime the roll. A falloff survives it.
+- **Dim the interface under the copy, never cut away from it.** `DIM` keys
+  brightness across the whole UI, 1.0 down to 0.42 then 0.26, plus a corner
+  scrim. The app stays visibly running behind the words.
+
+### Delete these from the background
+
+The fix for a boring beat is more happening in the middle of the frame and less
+at the edges. Deleted from the approved build: giant background words, the
+word-storm, decorative hairlines, ambient panels behind the hero, and the light
+field cut to a single soft wash. `STORM` is still declared empty at
+`claude-master.jsx:192-193` with its renderer live, which is what deleting it
+properly looks like.
+
+### Occupied holds
+
+Section 12 law 5 fixes the camera to three moves. This is its other half: **fill
+every camera lock with a body doing something.** All three locks in the approved
+film are occupied, and the longest one is the busiest stretch in the picture.
+When the frame holds, the content earns the motion.
+
+### Gate the weakest beat, not only the opening
+
+The eight-second gate in the next section catches a bad opening. It cannot catch
+a strong opening followed by three flat beats, which is exactly what was rejected
+here: "the intro very strong... the only parts i dont like is the think create
+handoff."
+
+So after the opening passes, render the **capability stretch** and look at that
+too. Do not self-grade it. Put the contact sheet in front of the person who asked
+for the film and ask which seconds are the worst. Their answer is the list.
+Rebuild those beats against the per-beat test above, and only then build the rest.
+
+
+## 10. Build it, look at it, then continue
 
 Do not build the whole film and then find out.
 
@@ -600,7 +749,7 @@ node videos/_kits/_tools/frames.mjs <project> 0,0.6,1.4,2.2,3.0,4.1,5.2,6.4,7.6
 5. **Diff the template against the generated file** whenever another tool has
    touched the project.
 
-## 10. Failure conditions
+## 11. Failure conditions
 
 Generic failure conditions catch nothing. Write 15 to 25 lines, each a specific
 observable defect for **this** film. These are the ones that recur, as a
@@ -624,7 +773,7 @@ starting set to specialise:
 - `animations-v3.jsx` was edited
 - it reads as a product tour rather than a film
 
-## 11. Verify, with output
+## 12. Verify, with output
 
 A green command is not visual approval. Report the numbers, do not estimate
 them.
@@ -657,7 +806,7 @@ and `gradfun` are all wrong advice.
 For a vertical film the Instagram feed crops the top 285 px, so nothing load
 bearing goes there.
 
-## 12. The laws that cost real renders
+## 13. The laws that cost real renders
 
 Each of these was paid for once. None of them is a preference.
 
@@ -698,7 +847,7 @@ Each of these was paid for once. None of them is a preference.
     describe a mood where a number will do. Do not write a scene without a
     coverage percentage.
 
-## 13. Working files
+## 14. Working files
 
 | What | Where |
 |---|---|
