@@ -24,24 +24,58 @@ built it, the composition files, and frames somebody can look at.
 
 ## 1. What you hand back
 
-Five things. A prompt on its own is not the deliverable, because a prompt that
-was never built is a guess.
+**A folder the person can upload to Claude Design and get a film.** That is the
+deliverable. Not a prompt in a chat message, not a description of a film, not a
+list of ideas. A folder.
 
-| # | Artefact | Where |
+Build it at `videos/_kits/<brand>/` in this exact shape, because the shape is
+what makes it work:
+
+| # | Artefact | Why it is there |
 |---|---|---|
-| 1 | `PROMPT-1.md`, the storyboard gate brief | `videos/_kits/<brand>/` |
-| 2 | `PROMPT-2.md`, the approval and build prompt | same |
-| 3 | `KIT.md`, the manifest with every file, its pixel size and its defects | same |
-| 4 | `build/piece.jsx` + `build/index.html`, the film, running | same |
-| 5 | `build/frames/`, a contact sheet you have opened and looked at | same |
+| 1 | `PROMPT.md` | the brief. One page, in the engine's language |
+| 2 | `START-HERE.md` | **the upload order.** Which files, in which order, in one message. Without it the person guesses and the guess is wrong |
+| 3 | `ATTACH/` | every asset the film needs, including `animations-v3.jsx` itself |
+| 4 | `frames/` | reference stills whose **filenames carry the instruction** |
+| 5 | `KIT.md` | the manifest: every file, its pixel size, its known defects |
 
-Every prompt you write contains, in this order and by name:
+Optionally, and only after the four above are finished: `build/piece.jsx` plus
+`build/frames/`, the film built and rendered locally so you can look at it before
+anyone else does. That is verification, not the deliverable. A kit with no local
+build still ships. A local build with no kit does not.
+
+### The three things that decide whether the folder works
+
+**Ship the engine inside `ATTACH/`.** `animations-v3.jsx` goes in the folder with
+the assets. Claude Design needs the runtime it is being asked to write against.
+Leaving it out is the most common way a good prompt produces a bad film.
+
+**Isolated parts, never a screenshot of a whole screen.** One object per file,
+transparent, 1600px minimum on the long edge, plus 4K plates at the film's aspect
+ratio. A whole screen dropped in is a slab and reads as broken. Claude Design
+films fail on missing assets, never on prompt length.
+
+**Put the instruction in the filename.** `REF-VERCEL_03_object-became-the-mark.png`
+teaches; `ref3.png` does not. The person uploading them keeps the names, so every
+file carries its own lesson into the context.
+
+### Name what is missing. Never invent a substitute.
+
+If an asset does not exist, say so in `PROMPT.md` under its own heading, and say
+what to do instead. A brief that admits two missing assets is usable. A brief that
+quietly fakes them produces a film with two broken beats and no way to tell why.
+
+### Every prompt contains, in this order and by name
 
 1. **the brief in the engine's language**: `OM_SCENES`, `CUES`, named `Easing`
 2. **the transformation chain, as match anchors**: what becomes what
-3. **the asset list**, so no beat is ever blocked on a missing part
+3. **the asset list**, with real filenames, so no beat is blocked on a missing part
 4. **the failure conditions for this specific film**, not generic ones
 5. **the verification commands**, so the claim "it works" has an output behind it
+
+A worked example of the whole shape is `videos/_kits/claude/`: brief, upload
+order, 31 assets with the official mark split into stackable layers, twelve
+instruction-named frames, and two missing assets named rather than faked.
 
 ## 2. The engine
 
